@@ -76,9 +76,9 @@ def train_yahoo_answers_classifier():
         # 3. Creare vectorizer
         print("\n3. Creare TF-IDF vectorizer...")
         vectorizer = TfidfVectorizer(
-            max_features=100000,          # Mărit la 100k
+            max_features=75000,          # Mărit la 100k
             stop_words='english',
-            ngram_range=(1, 3),           # Trecut la (1, 3)
+            ngram_range=(1, 2),           # Trecut la (1, 3)
             min_df=2,
             max_df=0.8,
             sublinear_tf=True             # NOU: Aplică scalare logaritmică
