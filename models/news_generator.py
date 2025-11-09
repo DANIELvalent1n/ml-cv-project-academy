@@ -1,218 +1,106 @@
-from PIL import Image
-import numpy as np
-import config
-import streamlit as st
-from datetime import datetime
-import random
+import torch
+import google.generativeai as genai
+from transformers import (
+    BlipProcessor,
+    BlipForConditionalGeneration,
+    BlipForQuestionAnswering
+)
+
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 class NewsGenerator:
     def __init__(self):
-        """
-        In production, use:
-        - BLIP for image captioning
-        - GPT-2/T5 for text generation
-        
-        For now, using heuristic approach
-        """
-        self.caption_templates = [
-            "A photo showing {}",
-            "An image depicting {}",
-            "A scene featuring {}",
-            "A view of {}"
-        ]
-        
-        self.news_templates = {
-            "people": [
-                "Local residents gathered today for {}. The event, which took place {}, attracted significant attention from the community.",
-                "In a developing story, {} was witnessed by several people {}. Authorities are monitoring the situation closely.",
-                "Community members participated in {} earlier today. The gathering, described as peaceful, highlighted important local concerns."
-            ],
-            "building": [
-                "A notable architectural feature {} has become the center of attention. Local officials confirmed that {}.",
-                "The structure located {} represents a significant development in the area. Experts suggest that this could impact {}.",
-                "This landmark {} has been making headlines. According to sources, the significance lies in {}."
-            ],
-            "nature": [
-                "Natural phenomena observed {} have caught the attention of researchers. Scientists indicate that {}.",
-                "The scenic view {} showcases the region's natural beauty. Environmental experts note that {}.",
-                "Weather conditions {} created a remarkable sight. Meteorologists explain that this is {}."
-            ],
-            "vehicle": [
-                "Transportation developments {} are making news today. Officials report that {}.",
-                "A vehicle incident {} has prompted discussions about safety. Local authorities state that {}.",
-                "Traffic patterns {} have been affected by recent changes. Transportation department confirms that {}."
-            ],
-            "object": [
-                "An interesting discovery {} has emerged in recent reports. Experts are examining {}.",
-                "The item found {} has raised questions among locals. Preliminary investigation suggests {}.",
-                "Unusual circumstances {} were documented earlier. Officials are working to understand {}."
-            ],
-            "animal": [
-                "Wildlife sighting {} has excited nature enthusiasts. Conservation experts note that {}.",
-                "Animal behavior observed {} provides insights into local ecosystem. Researchers indicate that {}.",
-                "The creature spotted {} represents an important ecological indicator. Scientists suggest that {}."
-            ]
-        }
+        self.device = DEVICE
+        self.blip_caption_proc = None
+        self.blip_caption_model = None
+        self.blip_vqa_proc = None
+        self.blip_vqa_model = None
+        self.gemini_model = None
     
-    def analyze_image(self, image):
-        """Analyze image to extract basic information"""
-        # Convert to numpy array
-        img_array = np.array(image)
-        
-        # Get image dimensions
-        height, width = img_array.shape[:2]
-        
-        # Analyze colors
-        avg_color = np.mean(img_array, axis=(0, 1))
-        brightness = np.mean(avg_color)
-        
-        # Simple heuristics for content detection
-        # In production, use BLIP or similar model
-        
-        # Determine dominant colors
-        if avg_color[2] > avg_color[0] and avg_color[2] > avg_color[1]:
-            color_desc = "blue tones"
-        elif avg_color[1] > avg_color[0] and avg_color[1] > avg_color[2]:
-            color_desc = "green tones"
-        elif avg_color[0] > avg_color[1] and avg_color[0] > avg_color[2]:
-            color_desc = "red tones"
-        else:
-            color_desc = "neutral tones"
-        
-        # Determine likely category based on brightness and colors
-        if brightness > 150:
-            category = "nature"
-        elif brightness < 80:
-            category = "building"
-        else:
-            category = random.choice(["people", "object", "vehicle"])
-        
-        return {
-            'category': category,
-            'brightness': brightness,
-            'color_description': color_desc,
-            'dimensions': (width, height)
-        }
+    def load_blip_caption(self):
+        if self.blip_caption_model is None:
+            self.blip_caption_proc = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-large")
+            self.blip_caption_model = BlipForConditionalGeneration.from_pretrained("Salesforce/blip-image-captioning-large")
+            self.blip_caption_model.to(self.device)
+            self.blip_caption_model.eval()
+        return self.blip_caption_proc, self.blip_caption_model
     
-    def generate_caption(self, image_info):
-        """Generate caption from image analysis"""
-        category = image_info['category']
-        color_desc = image_info['color_description']
-        
-        # Simple caption generation
-        objects = {
-            "people": ["a group of people", "individuals", "a crowd", "community members"],
-            "building": ["a building", "an architectural structure", "a facility", "infrastructure"],
-            "nature": ["natural scenery", "outdoor environment", "landscape", "natural features"],
-            "vehicle": ["a vehicle", "transportation", "a mode of transport", "machinery"],
-            "object": ["various objects", "items of interest", "distinctive features", "notable elements"],
-            "animal": ["wildlife", "an animal", "fauna", "a creature"]
-        }
-        
-        obj = random.choice(objects[category])
-        template = random.choice(self.caption_templates)
-        caption = template.format(f"{obj} with {color_desc}")
-        
+    def load_blip_vqa(self):
+        if self.blip_vqa_model is None:
+            self.blip_vqa_proc = BlipProcessor.from_pretrained("Salesforce/blip-vqa-base")
+            self.blip_vqa_model = BlipForQuestionAnswering.from_pretrained("Salesforce/blip-vqa-base")
+            self.blip_vqa_model.to(self.device)
+            self.blip_vqa_model.eval()
+        return self.blip_vqa_proc, self.blip_vqa_model
+    
+    def load_gemini(self, api_key):
+        if self.gemini_model is None:
+            genai.configure(api_key=api_key)
+            self.gemini_model = genai.GenerativeModel("gemini-2.0-flash")
+        return self.gemini_model
+    
+    def generate_caption(self, pil_img, max_length=64):
+        proc, model = self.load_blip_caption()
+        inputs = proc(pil_img, return_tensors="pt").to(self.device)
+        with torch.no_grad():
+            out = model.generate(**inputs, max_length=max_length)
+        caption = proc.decode(out[0], skip_special_tokens=True)
         return caption
     
-    def generate_title(self, caption, category):
-        """Generate news title"""
-        title_templates = {
-            "people": [
-                "Local Community Event Draws Attention",
-                "Residents Gather for Important Discussion",
-                "Community Activity Highlights Local Issues",
-                "Public Gathering Addresses Key Concerns"
-            ],
-            "building": [
-                "Architectural Development Makes Headlines",
-                "New Structure Becomes Local Landmark",
-                "Building Project Progresses in Region",
-                "Infrastructure Update Announced"
-            ],
-            "nature": [
-                "Natural Phenomenon Observed in Area",
-                "Environmental Conditions Create Spectacular View",
-                "Nature's Display Captivates Observers",
-                "Scenic Beauty Highlights Regional Features"
-            ],
-            "vehicle": [
-                "Transportation Update Affects Local Routes",
-                "Vehicle Development Announced",
-                "Traffic Changes Implemented",
-                "Transportation News Emerges"
-            ],
-            "object": [
-                "Interesting Discovery Made in Region",
-                "Unusual Find Raises Questions",
-                "Local Discovery Sparks Interest",
-                "Notable Item Identified"
-            ],
-            "animal": [
-                "Wildlife Sighting Excites Locals",
-                "Animal Behavior Provides Insights",
-                "Nature Encounter Documented",
-                "Wildlife Activity Observed"
-            ]
-        }
-        
-        return random.choice(title_templates[category])
+    def answer_vqa(self, pil_img, question, max_length=32):
+        proc, model = self.load_blip_vqa()
+        inputs = proc(images=pil_img, text=question, return_tensors="pt").to(self.device)
+        with torch.no_grad():
+            out = model.generate(**inputs, max_length=max_length)
+        answer = proc.decode(out[0], skip_special_tokens=True)
+        return answer
     
-    def generate_content(self, caption, category):
-        """Generate full news article content"""
-        templates = self.news_templates[category]
+    def generate_article(self, caption, vqa_dict, api_key):
+        subject = vqa_dict.get("What is the main subject or focus of the image?", "Incident")
+        objects = vqa_dict.get("What specific objects or items are prominently shown?", "")
+        condition = vqa_dict.get("What condition or state are the main objects in?", "visible")
+        people = vqa_dict.get("How many people are visible and what are they doing?", "")
+        event = vqa_dict.get("What appears to have happened or is currently happening?", "occurred")
+        location = vqa_dict.get("Is this indoors or outdoors?", "location")
+        colors = vqa_dict.get("What colors and lighting dominate the scene?", "")
+        time = vqa_dict.get("What time period or season does this suggest?", "")
         
-        # Generate multiple paragraphs
-        paragraphs = []
+        model = self.load_gemini(api_key)
         
-        # Opening paragraph
-        location = random.choice(["in the downtown area", "near the city center", 
-                                 "in a residential neighborhood", "at a local venue"])
-        time = random.choice(["this morning", "earlier today", "this afternoon", "recently"])
+        prompt_text = (
+            f"Write a medium-long news article with these details:\n"
+            f"Description: {caption}\n"
+            f"Subject: {subject}\n"
+            f"Objects: {objects}\n"
+            f"Condition: {condition}\n"
+            f"People: {people}\n"
+            f"Event: {event}\n"
+            f"Location: {location}\n"
+            f"Colors: {colors}\n"
+            f"Time: {time}\n\n"
+            f"Tone: factual, neutral. Use 'a witness' or 'official' not real names. Format with TITLE, LEAD, BODY sections."
+        )
         
-        opening = random.choice(templates).format(location, time)
-        paragraphs.append(opening)
+        response = model.generate_content(
+            prompt_text,
+            generation_config={
+                "temperature": 0.7,
+                "top_p": 0.9,
+                "max_output_tokens": 300
+            }
+        )
         
-        # Middle paragraph with details
-        details = [
-            "Witnesses reported seeing the event unfold with great interest. Local authorities have been informed and are assessing the situation.",
-            "The incident has sparked conversations among community members. Officials stated that they are monitoring developments closely.",
-            "Observers noted the significance of this occurrence. Experts suggest this could have broader implications for the area.",
-            "The situation developed over several hours. Sources indicate that response teams were quick to arrive on scene."
-        ]
-        paragraphs.append(random.choice(details))
-        
-        # Closing paragraph
-        conclusions = [
-            "Further updates are expected as more information becomes available. Residents are advised to stay informed through official channels.",
-            "The community continues to observe the situation with interest. Local officials promise to provide updates as they emerge.",
-            "As the story develops, authorities encourage public awareness. More details will be released in the coming days.",
-            "Investigation into the matter is ongoing. The public will be notified of any significant developments."
-        ]
-        paragraphs.append(random.choice(conclusions))
-        
-        return "\n\n".join(paragraphs)
+        return response.text
     
-    def generate_news(self, image):
-        """Generate complete news article from image"""
-        # Analyze image
-        image_info = self.analyze_image(image)
+    @staticmethod
+    def parse_vqa_from_prompt(prompt_text):
+        vqa_dict = {}
+        lines = prompt_text.split('\n')
         
-        # Generate caption
-        caption = self.generate_caption(image_info)
+        for line in lines:
+            if line.startswith("- "):
+                parts = line[2:].split(": ", 1)
+                if len(parts) == 2:
+                    vqa_dict[parts[0]] = parts[1]
         
-        # Generate title
-        title = self.generate_title(caption, image_info['category'])
-        
-        # Generate content
-        content = self.generate_content(caption, image_info['category'])
-        
-        # Add metadata
-        return {
-            'title': title,
-            'caption': caption,
-            'content': content,
-            'category': image_info['category'],
-            'generated_at': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            'image_info': image_info
-        }
+        return vqa_dict
