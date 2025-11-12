@@ -24,7 +24,7 @@ class TextOriginClassifier:
         self.data_path = data_path
         self.model = None
         self.vectorizer = None
-        self.classes = ['Scris de Om (0)', 'Generat de Mașină (1)'] # Etichetele corespunzătoare pentru 0 și 1
+        self.classes = ['Human Written (0)', 'AI Generated (1)'] # Etichetele corespunzătoare pentru 0 și 1
         self.load_or_train()
     
     # --- Metode de Încărcare/Antrenare ---

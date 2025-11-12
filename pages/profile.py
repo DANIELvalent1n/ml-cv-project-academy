@@ -104,7 +104,7 @@ def main():
         st.markdown("### 📊 Your Statistics Overview")
         
         # Main stats
-        col1, col2, col3, col4 = st.columns(4)
+        col1, col2, col3, col4, col5 = st.columns(5)
         
         with col1:
             st.markdown("""
@@ -129,9 +129,17 @@ def main():
                     <p class="stat-label">Articles Generated</p>
                 </div>
             """.format(stats['total_generated']), unsafe_allow_html=True)
-        
+
         with col4:
-            total_actions = stats['total_classifications'] + stats['total_detections'] + stats['total_generated']
+            st.markdown("""
+                <div class="stat-card">
+                    <p class="stat-number">{}</p>
+                    <p class="stat-label">AI Text Detections</p>
+                </div>
+            """.format(stats['total_ai_detections']), unsafe_allow_html=True)
+        
+        with col5:
+            total_actions = stats['total_classifications'] + stats['total_detections'] + stats['total_generated'] + stats['total_ai_detections']
             st.markdown("""
                 <div class="stat-card">
                     <p class="stat-number">{}</p>
@@ -163,52 +171,7 @@ def main():
                     percentage = (count / stats['total_classifications']) * 100
                     st.markdown(f"- **{category}**: {count} ({percentage:.1f}%)")
         
-        # Recent activity summary
-        st.markdown("### 📅 Recent Activity")
         
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            st.markdown("**Latest Classifications**")
-            recent_class = db.get_user_classifications(st.session_state.user_id, limit=5)
-            if recent_class:
-                for item in recent_class:
-                    st.markdown(f"""
-                        <div class="activity-item">
-                            <strong>{item['predicted_category']}</strong><br>
-                            <small>{item['created_at']}</small>
-                        </div>
-                    """, unsafe_allow_html=True)
-            else:
-                st.info("No classifications yet")
-        
-        with col2:
-            st.markdown("**Latest Detections**")
-            recent_detect = db.get_user_detections(st.session_state.user_id, limit=5)
-            if recent_detect:
-                for item in recent_detect:
-                    st.markdown(f"""
-                        <div class="activity-item">
-                            <strong>{item['verdict']}</strong><br>
-                            <small>{item['created_at']}</small>
-                        </div>
-                    """, unsafe_allow_html=True)
-            else:
-                st.info("No detections yet")
-        
-        with col3:
-            st.markdown("**Latest Generated Articles**")
-            recent_gen = db.get_user_generated_news(st.session_state.user_id, limit=5)
-            if recent_gen:
-                for item in recent_gen:
-                    st.markdown(f"""
-                        <div class="activity-item">
-                            <strong>{item['generated_title'][:30]}...</strong><br>
-                            <small>{item['created_at']}</small>
-                        </div>
-                    """, unsafe_allow_html=True)
-            else:
-                st.info("No generated articles yet")
     
     with tab2:
         st.markdown("### 🏆 Achievements & Badges")
@@ -313,6 +276,15 @@ def main():
                 'type': 'Generation',
                 'icon': '✍️',
                 'description': f"Generated article: {item['generated_title'][:40]}...",
+                'time': item['created_at']
+            })
+
+        # Add ai detections
+        for item in db.get_user_origin(st.session_state.user_id, limit=10):
+            all_activities.append({
+                'type': 'AI Text Detection',
+                'icon': '🔍',
+                'description': f"Analyzed text - Verdict: {item['predicted_origin'][:40]}...",
                 'time': item['created_at']
             })
         

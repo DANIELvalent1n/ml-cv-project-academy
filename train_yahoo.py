@@ -5,6 +5,7 @@ import pickle
 import numpy as np
 import pandas as pd
 from pathlib import Path
+from sklearn.calibration import CalibratedClassifierCV
 from sklearn.model_selection import train_test_split
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
@@ -92,7 +93,7 @@ def train_yahoo_answers_classifier():
         # 4. Antrenare model
         print("\n4. Antrenare model Linear Support Vector Classifier (LogReg)...")
         # LinearSVC este o alegere excelentă pentru clasificarea textului la scară largă
-        model = LinearSVC(
+        base_model = LinearSVC(
             dual="auto", 
             C=0.8,                # NOU: Regularizare ușor crescută
             loss='hinge',         # NOU: Schimbă funcția de pierdere
@@ -101,16 +102,24 @@ def train_yahoo_answers_classifier():
             max_iter=5000         # Poate ajuta la convergență pe seturi mari
             )
         
-        model.fit(X_train_vec, y_train_mapped)
+        
+        base_model.fit(X_train_vec, y_train_mapped)
+
+        # 4.1 Calibrate probabilities
+        print("\n4.1 Calibrare model pentru probabilități...")
+        calibrated_model = CalibratedClassifierCV(base_model, method='sigmoid', cv=5)
+        calibrated_model.fit(X_train_vec, y_train_mapped)
         
         # 5. Evaluare
-        print("\n5. Evaluare model...")
-        y_pred = model.predict(X_test_vec)
+        # 5. Evaluation
+        print("\n5. Evaluare model calibrat...")
+        y_pred = calibrated_model.predict(X_test_vec)
         accuracy = accuracy_score(y_test_mapped, y_pred)
-        
+
         print(f"\n  ✓ Accuracy: {accuracy*100:.2f}%")
         print("\n  Classification Report:")
         print(classification_report(y_test_mapped, y_pred))
+        
         
         # 6. Salvare model
         print("\n6. Salvare model...")
@@ -118,7 +127,7 @@ def train_yahoo_answers_classifier():
         vectorizer_path = config.MODELS_DIR / "yahoo_answers_vectorizer.pkl"
         
         with open(model_path, 'wb') as f:
-            pickle.dump(model, f)
+            pickle.dump(calibrated_model, f)
         with open(vectorizer_path, 'wb') as f:
             pickle.dump(vectorizer, f)
         

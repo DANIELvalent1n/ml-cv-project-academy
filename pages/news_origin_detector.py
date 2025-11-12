@@ -89,10 +89,10 @@ def main():
                     prediction, confidence, scores = classifier.predict(text_input)
                     
                     # Save to database (using a dedicated model identifier)
-                    db.save_classification(
+                    db.save_origin(
                         st.session_state.user_id,
                         text_input,
-                        f"Origin: {prediction}",
+                        prediction,
                         confidence
                     )
                     

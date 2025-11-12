@@ -8,7 +8,7 @@ import io
 sys.path.append(str(Path(__file__).parent.parent))
 
 from utils.auth import require_auth, init_session_state
-from models.fake_news_detector import FakeNewsDetector
+from models.kaggle_fake_news_detector import FakeNewsDetector
 from models.ai_image_detector import AIImageDetector
 from database.db_manager import DatabaseManager
 import plotly.graph_objects as go

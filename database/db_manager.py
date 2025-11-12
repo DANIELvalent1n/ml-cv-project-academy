@@ -75,6 +75,18 @@ class DatabaseManager:
                 FOREIGN KEY (user_id) REFERENCES users (id)
             )
         ''')
+
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS ai_generated_text_detections (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                text TEXT NOT NULL,
+                predicted_origin TEXT NOT NULL,
+                confidence REAL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users (id)
+            )
+        ''')
         
         conn.commit()
         conn.close()
@@ -152,6 +164,35 @@ class DatabaseManager:
             '''SELECT * FROM news_classifications 
                WHERE user_id = ? 
                ORDER BY created_at DESC 
+               LIMIT ?''',
+            (user_id, limit)
+        )
+        results = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+        return results
+    
+    # News classification methods
+    def save_origin(self, user_id, text, origin, confidence):
+        """Save news classification result"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            '''INSERT INTO ai_generated_text_detections
+               (user_id, text, predicted_origin, confidence) 
+               VALUES (?, ?, ?, ?)''',
+            (user_id, text, origin, confidence)
+        )
+        conn.commit()
+        conn.close()
+    
+    def get_user_origin(self, user_id, limit=10):
+        """Get user's classification history"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            '''SELECT * FROM ai_generated_text_detections
+               WHERE user_id = ? 
+               ORDER BY created_at DESC
                LIMIT ?''',
             (user_id, limit)
         )
@@ -238,6 +279,9 @@ class DatabaseManager:
         # Total generated news
         cursor.execute('SELECT COUNT(*) FROM generated_news WHERE user_id = ?', (user_id,))
         stats['total_generated'] = cursor.fetchone()[0]
+
+        cursor.execute('SELECT COUNT(*) FROM ai_generated_text_detections WHERE user_id = ?', (user_id,))
+        stats['total_ai_detections'] = cursor.fetchone()[0]
         
         # Category distribution
         cursor.execute(

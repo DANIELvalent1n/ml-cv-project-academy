@@ -260,18 +260,7 @@ def main():
             st.success(f"👤 Welcome, {st.session_state.user['username']}!")
             st.markdown("---")
             
-            # Navigation
-            st.markdown("### 📍 Navigation")
-            
-            # ADDING NEW NAVIGATION ITEMS HERE
-            st.markdown("""
-                - 🏷️ **News Labeling** (Page: `news_classifier`)
-                - 🤖 **AI/Human Detection** (Page: `text_origin_detector`)
-                - ❓ **Yahoo! Topic C.** (Page: `yahoo_topic_classifier`)
-            """)
-            
             st.info("Use the sidebar menu above to navigate between features")
-            
             st.markdown("---")
             
             # User actions
