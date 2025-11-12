@@ -295,3 +295,19 @@ class DatabaseManager:
         
         conn.close()
         return stats
+    
+    def delete_user(self, user_id: int):
+        """Permanently delete a user and all their associated data"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        try:
+            # Finally delete the user record
+            cursor.execute('DELETE FROM users WHERE id = ?', (user_id,))
+            
+            conn.commit()
+            conn.close()
+            return True
+        except Exception as e:
+            conn.rollback()
+            conn.close()
+            raise Exception(f"Failed to delete user {user_id}: {e}")

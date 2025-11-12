@@ -49,12 +49,12 @@ st.markdown("""
         font-weight: bold;
         text-align: center;
         margin-bottom: 1rem;
-        color: #333;
+        color: #e6e6e6;
     }
     
     .feature-desc {
         text-align: center;
-        color: #666;
+        color: #e6e6e6;
         line-height: 1.6;
     }
     
@@ -95,11 +95,11 @@ st.markdown("""
     .stats-number {
         font-size: 2.5rem;
         font-weight: bold;
-        color: #667eea;
+        color: #e6e6e6;
     }
     
     .stats-label {
-        color: #666;
+        color: #e6e6e6;
         font-size: 0.9rem;
     }
 </style>
